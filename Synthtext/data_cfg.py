@@ -11,16 +11,21 @@ font_size = [25, 60]
 underline_rate = 0.01
 strong_rate = 0.05
 oblique_rate = 0.02
-font_dir = '/reserve/qianyu/datasets/fonts/english_ttf'
-standard_font_path = '/reserve/qianyu/datasets/fonts/english_ttf/arial.ttf'
+# font_dir = '/home/yfx/datasets/fonts/english_ttf'
+font_dir = '/data1/yfx/datasets/fonts/chinese_ttf'
+
+# standard_font_path = '/home/yfx/datasets/fonts/english_ttf/arial.ttf'
+standard_font_path = '/data1/yfx/datasets/fonts/chinese_ttf/msyh.ttc'
 
 # text
-text_filepath = 'data/texts.txt'
+en_text_filepath = 'data/en_texts.txt'
+ch_text_filepath = 'data/ch_texts.txt'
+
 capitalize_rate = 0.1
 uppercase_rate = 0.04
 
 # background
-bg_filepath = '/reserve/qianyu/datasets/srnet_bg/labels.txt'
+bg_filepath = '/data1/yfx/datasets/bg_no_text/labels.txt'
 
 ## background augment
 brightness_rate = 0.8

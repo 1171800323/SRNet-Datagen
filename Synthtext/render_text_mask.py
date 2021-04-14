@@ -68,7 +68,7 @@ def render_normal(font, text):
                 ch_bounds = font.render_to(surf, (x,y), ch)
                 ch_bounds.x = x + ch_bounds.x
                 ch_bounds.y = y - ch_bounds.y
-                x += ch_bounds.width
+                x = ch_bounds.width + ch_bounds.x
                 bbs.append(np.array(ch_bounds))
 
     # get the union of characters for cropping:
@@ -91,6 +91,10 @@ def render_curved(font, text, curve_rate, curve_center = None):
     wl = len(text)
     isword = len(text.split()) == 1
 
+    # do curved iff, the length of the word <= 10
+    if not isword or wl > 10:
+        return render_normal(font, text)
+    
     # create the surface:
     lspace = font.get_sized_height() + 1
     lbound = font.get_rect(text)
