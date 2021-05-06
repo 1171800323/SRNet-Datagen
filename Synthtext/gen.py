@@ -130,6 +130,9 @@ class datagen():
             param['curve_center'] = int(param['curve_center'] / len(text1) * len(text2))
             surf2, bbs2 = render_text_mask.render_normal(font_standard, text2)
 
+            bb1 = render_text_mask.bb_xywh2coords(bbs1)
+            bb2 = render_text_mask.bb_xywh2coords(bbs2)
+
             # get padding
             padding_ud = np.random.randint(data_cfg.padding_ud[0], data_cfg.padding_ud[1] + 1, 2)
             padding_lr = np.random.randint(data_cfg.padding_lr[0], data_cfg.padding_lr[1] + 1, 2)
@@ -140,16 +143,18 @@ class datagen():
             zoom = data_cfg.zoom_param[0] * np.random.randn(2) + data_cfg.zoom_param[1]
             shear = data_cfg.shear_param[0] * np.random.randn(2) + data_cfg.shear_param[1]
             perspect = data_cfg.perspect_param[0] * np.random.randn(2) +data_cfg.perspect_param[1]
-            surf1 = render_text_mask.perspective(surf1, rotate, zoom, shear, perspect, padding) # w first
-            # surf2 = render_text_mask.perspective(surf2, rotate, zoom, shear, perspect, padding) # w first
+            surf1, bb1 = render_text_mask.perspective(surf1, rotate, zoom, shear, perspect, padding, bb1) # w first
+            # surf2, _ = render_text_mask.perspective(surf2, rotate, zoom, shear, perspect, padding) # w first
+            surf2, bb2 = render_text_mask.perspective(surf2, rotate, zoom, shear, perspect, padding, bb2) # w first
 
             # choose a background
             surf1_h, surf1_w = surf1.shape[:2]
             surf2_h, surf2_w = surf2.shape[:2]
             surf_h = max(surf1_h, surf2_h)
             surf_w = max(surf1_w, surf2_w)
-            surf1 = render_text_mask.center2size(surf1, (surf_h, surf_w))
-            surf2 = render_text_mask.center2size(surf2, (surf_h, surf_w))
+            surf1, bb1 = render_text_mask.center2size(surf1, (surf_h, surf_w), bb1)
+            # surf2, _ = render_text_mask.center2size(surf2, (surf_h, surf_w))
+            surf2, bb2 = render_text_mask.center2size(surf2, (surf_h, surf_w), bb2)
 
             bg_h, bg_w = bg.shape[:2]
             if bg_w < surf_w or bg_h < surf_h:
@@ -159,9 +164,9 @@ class datagen():
             t_b = bg[y:y + surf_h, x:x + surf_w, :]
 
             # augment surf
-            surfs = [[surf1]]
+            surfs = [[surf1, surf2]]
             self.surf_augmentor.augmentor_images = surfs
-            surf1 = self.surf_augmentor.sample(1)[0][0]
+            surf1, surf2 = self.surf_augmentor.sample(1)[0]
 
             # bg augment
             bgs = [[t_b]]
@@ -196,6 +201,11 @@ class datagen():
                     }
             _, i_s = colorize.colorize(surf1, t_b, fg_col, bg_col, self.colorsRGB, self.colorsLAB, min_h, param)
             t_t, t_f = colorize.colorize(surf2, t_b, fg_col, bg_col, self.colorsRGB, self.colorsLAB, min_h, param)
+
+            i_s = render_text_mask.paint_boundingbox(i_s, bb1)
+            t_t = render_text_mask.paint_boundingbox(t_t, bb2)
+            t_f = render_text_mask.paint_boundingbox(t_f, bb2)
+            
 
             # skeletonization
             t_sk = skeletonization.skeletonization(surf2, 127)

@@ -18,14 +18,16 @@ import pygame.locals
 from pygame import freetype
 
 
-def center2size(surf, size):
+def center2size(surf, size, bb=None):
 
     canvas = np.zeros(size).astype(np.uint8)
     size_h, size_w = size
     surf_h, surf_w = surf.shape[:2]
     canvas[(size_h-surf_h)//2:(size_h-surf_h)//2+surf_h,
            (size_w-surf_w)//2:(size_w-surf_w)//2+surf_w] = surf
-    return canvas
+    if bb is not None:
+        bb = update_bb(bb, (size_w-surf_w)//2, (size_h-surf_h)//2)
+    return canvas, bb
 
 
 def crop_safe(arr, rect, bbs=[], pad=0):
@@ -73,7 +75,6 @@ def render_normal(font, text):
             else:
                 # render the character
                 ch_bounds = font.render_to(surf, (x, y), ch)
-                print(ch, x, y, ch_bounds)
                 ch_bounds.x = x + ch_bounds.x
                 ch_bounds.y = y - ch_bounds.y
                 x = ch_bounds.x + ch_bounds.width
@@ -131,7 +132,6 @@ def render_curved(font, text, curve_rate, curve_center=None):
     rect.centery += curve[mid_idx]
     ch_bounds = font.render_to(
         surf, rect, text[mid_idx], rotation=rots[mid_idx])
-    print(text[mid_idx], rect, ch_bounds)
     ch_bounds.x = rect.x + ch_bounds.x
     ch_bounds.y = rect.y - ch_bounds.y
     mid_ch_bb = np.array(ch_bounds)
@@ -189,7 +189,7 @@ def render_curved(font, text, curve_rate, curve_center=None):
     return surf_arr, bbs
 
 
-def center_warpPerspective(img, H, center, size, bb):
+def center_warpPerspective(img, H, center, size, bb=None):
 
     P = np.array([[1, 0, center[0]],
                   [0, 1, center[1]],
@@ -199,11 +199,12 @@ def center_warpPerspective(img, H, center, size, bb):
     img = cv2.warpPerspective(img, M, size,
                               cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP)
 
-    points = bb2points(bb)
-    perspected_points = M.dot(points)
-    perspected_points[0, :] /= perspected_points[2, :]
-    perspected_points[1, :] /= perspected_points[2, :]
-    bb = points2bb(perspected_points)
+    if bb is not None:
+        points = bb2points(bb)
+        perspected_points = M.dot(points)
+        perspected_points[0, :] /= perspected_points[2, :]
+        perspected_points[1, :] /= perspected_points[2, :]
+        bb = points2bb(perspected_points)
     return img, bb
 
 
@@ -247,7 +248,7 @@ def center_pointsPerspective(points, H, center):
     return M.dot(points)
 
 
-def perspective(img, bb, rotate_angle, zoom, shear_angle, perspect, pad):  # w first
+def perspective(img, rotate_angle, zoom, shear_angle, perspect, pad, bb=None):  # w first
 
     rotate_angle = rotate_angle * math.pi / 180.
     shear_x_angle = shear_angle[0] * math.pi / 180.
@@ -290,15 +291,16 @@ def perspective(img, bb, rotate_angle, zoom, shear_angle, perspect, pad):  # w f
     tlx = (canvas_w - img_w) // 2
     canvas[tly:tly+img_h, tlx:tlx+img_w] = img
 
-    bb = update_bb(bb, tlx, tly)
+    if bb is not None:
+        bb = update_bb(bb, tlx, tly)
 
     canvas_center = (canvas_w // 2, canvas_h // 2)
     canvas_size = (canvas_w, canvas_h)
     canvas, bb = center_warpPerspective(
         canvas, H, canvas_center, canvas_size, bb)
     loc = np.where(canvas > 127)
-    miny, minx = np.min(loc[0]), np.min(loc[1])
-    maxy, maxx = np.max(loc[0]), np.max(loc[1])
+    miny, minx = min(np.min(loc[0]), int(np.min(bb[1]))), min(np.min(loc[1]), int(np.min(bb[0])))
+    maxy, maxx = max(np.max(loc[0]), int(np.max(bb[1]))), max(np.max(loc[1]), int(np.max(bb[0])))
     text_w = maxx - minx + 1
     text_h = maxy - miny + 1
     resimg = np.zeros(
@@ -306,7 +308,9 @@ def perspective(img, bb, rotate_angle, zoom, shear_angle, perspect, pad):  # w f
     resimg[pad[2]:pad[2]+text_h, pad[0]:pad[0] +
            text_w] = canvas[miny:maxy+1, minx:maxx+1]
 
-    bb = update_bb(bb, -minx + pad[0], -miny + pad[2])
+    if bb is not None:
+        bb = update_bb(bb, -minx + pad[0], -miny + pad[2])
+
     return resimg, bb
 
 
@@ -360,7 +364,10 @@ def paint_rectangle(img, bbs, color=(0, 0, 255)):
 
 
 def paint_boundingbox(img, bb, color=(0, 0, 255)):
-    new_img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+    if len(img.shape) == 2:
+        new_img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+    else:
+        new_img = img
     for i in range(bb.shape[2]):
         x = bb[0, :, i]
         y = bb[1, :, i]
@@ -418,8 +425,7 @@ def main():
     perspect = data_cfg.perspect_param[0] * \
         np.random.randn(2) + data_cfg.perspect_param[1]
     # surf, bb = perspective(surf, bb, 20, [1.11, 0.9], [-0.49,-3.8], [0.0006, -0.0002], [2,8,11,8])
-    surf, bb = perspective(surf, bb, 20, zoom, shear, perspect, padding)
-    print(bb)
+    surf, bb = perspective(surf, 20, zoom, shear, perspect, padding, bb)
 
     img = paint_boundingbox(surf, bb)
     cv2.imshow('img', img)
